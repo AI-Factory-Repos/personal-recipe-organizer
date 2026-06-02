@@ -120,7 +120,7 @@
     var row = document.createElement('div');
     row.className = 'ingredient-row';
     row.innerHTML =
-      '<input type="text" placeholder="e.g. 1 tsp salt" value="" />' +
+      '<input type="text" placeholder="e.g. 1 tsp salt" />' +
       '<button type="button" class="btn btn-secondary remove-ing" aria-label="Remove ingredient">&#x2715;</button>';
     if (value) row.querySelector('input').value = value;
     row.querySelector('.remove-ing').addEventListener('click', function() {
@@ -146,25 +146,25 @@
 
   /* ── Validation ── */
   function validate(fields) {
-    if (!fields.title)        return 'Recipe title is required.';
+    if (!fields.title)              return 'Recipe title is required.';
     if (!fields.ingredients.length) return 'Add at least one ingredient.';
-    if (!fields.instructions) return 'Instructions are required.';
-    if (!fields.cuisineType)  return 'Please select a cuisine type.';
-    if (!fields.mealCategory) return 'Please select a meal category.';
-    if (!fields.difficulty)   return 'Please select a difficulty level.';
+    if (!fields.instructions)       return 'Instructions are required.';
+    if (!fields.cuisineType)        return 'Please select a cuisine type.';
+    if (!fields.mealCategory)       return 'Please select a meal category.';
+    if (!fields.difficulty)         return 'Please select a difficulty level.';
     return null;
   }
 
-  /* ── Form submission ── */
+  /* ── Form submit ── */
   document.getElementById('create-recipe-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     hideError();
 
-    var ingredients = Array.from(ingList.querySelectorAll('input'))
+    const ingredients = Array.from(ingList.querySelectorAll('input'))
       .map(function(i) { return i.value.trim(); })
       .filter(Boolean);
 
-    var fields = {
+    const fields = {
       title:        document.getElementById('title').value.trim(),
       ingredients:  ingredients,
       instructions: document.getElementById('instructions').value.trim(),
@@ -173,7 +173,7 @@
       difficulty:   document.getElementById('difficulty').value
     };
 
-    var validationError = validate(fields);
+    const validationError = validate(fields);
     if (validationError) {
       showError(validationError);
       return;
@@ -182,9 +182,10 @@
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
-    var token = localStorage.getItem('recipeOrganizerToken');
+    const token = localStorage.getItem('recipeOrganizerToken');
+
     try {
-      var res = await fetch('/api/recipes', {
+      const res = await fetch('/api/recipes', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + token,
@@ -192,8 +193,14 @@
         },
         body: JSON.stringify(fields)
       });
-      var data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create recipe.');
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create recipe. Please try again.');
+      }
+
+      // Success — navigate to dashboard
       navigate('/dashboard');
     } catch (err) {
       showError(err.message);
