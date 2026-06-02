@@ -13,18 +13,22 @@
 
   <div id="register-alert" class="alert alert-error" style="display:none"></div>
 
-  <form id="register-form">
+  <form id="register-form" novalidate>
     <div class="form-group">
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" placeholder="chef_jane" minlength="3" required />
+      <input type="text" id="username" name="username" placeholder="Your name" autocomplete="username" required />
     </div>
     <div class="form-group">
       <label for="email">Email</label>
-      <input type="email" id="email" name="email" placeholder="you@example.com" required />
+      <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required />
     </div>
     <div class="form-group">
-      <label for="password">Password <span style="font-weight:400;color:var(--color-text-muted)">(min 6 chars)</span></label>
-      <input type="password" id="password" name="password" placeholder="••••••••" minlength="6" required />
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Min. 6 characters" autocomplete="new-password" required />
+    </div>
+    <div class="form-group">
+      <label for="confirm-password">Confirm Password</label>
+      <input type="password" id="confirm-password" name="confirm-password" placeholder="Repeat password" autocomplete="new-password" required />
     </div>
     <button type="submit" class="btn btn-primary btn-full" id="register-btn">Create Account</button>
   </form>
@@ -43,17 +47,41 @@
   function showError(msg) {
     alertEl.textContent = msg;
     alertEl.style.display = 'block';
+    alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function hideError() {
+    alertEl.style.display = 'none';
+  }
+
+  function validate(username, email, password, confirmPassword) {
+    if (!username) return 'Username is required.';
+    if (username.length < 3) return 'Username must be at least 3 characters.';
+    if (!email) return 'Email is required.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address.';
+    if (!password) return 'Password is required.';
+    if (password.length < 6) return 'Password must be at least 6 characters.';
+    if (password !== confirmPassword) return 'Passwords do not match.';
+    return null;
   }
 
   form.addEventListener('submit', async function(e) {
     e.preventDefault();
-    alertEl.style.display = 'none';
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Creating account…';
+    hideError();
 
     const username = document.getElementById('username').value.trim();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    const validationError = validate(username, email, password, confirmPassword);
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating account…';
 
     try {
       const res = await fetch('/api/auth/register', {
@@ -62,7 +90,7 @@
         body: JSON.stringify({ username, email, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Registration failed');
+      if (!res.ok) throw new Error(data.message || 'Registration failed. Please try again.');
 
       localStorage.setItem('recipeOrganizerToken', data.token);
       localStorage.setItem('recipeOrganizerUser', JSON.stringify(data.user));
