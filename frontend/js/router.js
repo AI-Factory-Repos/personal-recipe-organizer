@@ -15,6 +15,31 @@ function getToken() {
   return localStorage.getItem('recipeOrganizerToken');
 }
 
+/**
+ * Decode a JWT payload without verifying the signature.
+ * Returns null if the token is missing or malformed.
+ */
+function decodeTokenPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Returns true if there is a token and it is not expired.
+ */
+function isTokenValid() {
+  const token = getToken();
+  if (!token) return false;
+  const payload = decodeTokenPayload(token);
+  if (!payload) return false;
+  if (payload.exp && payload.exp * 1000 < Date.now()) return false;
+  return true;
+}
+
 function parseRoute(hash) {
   // Strip leading #
   const path = hash.replace(/^#/, '') || '/login';
@@ -33,21 +58,29 @@ async function loadRoute() {
   const hash = window.location.hash || '#/login';
   const { base, param } = parseRoute(hash);
 
-  const token = getToken();
+  const authenticated = isTokenValid();
 
-  // Auth guard
-  if (!token && !PUBLIC_ROUTES.includes(base)) {
+  // If token exists but is expired, clean up storage
+  if (getToken() && !authenticated) {
+    localStorage.removeItem('recipeOrganizerToken');
+    localStorage.removeItem('recipeOrganizerUser');
+  }
+
+  // Auth guard — unauthenticated user tries to access protected route
+  if (!authenticated && !PUBLIC_ROUTES.includes(base)) {
     window.location.hash = '/login';
     return;
   }
-  if (token && PUBLIC_ROUTES.includes(base)) {
+
+  // Already authenticated — no need to visit login/register
+  if (authenticated && PUBLIC_ROUTES.includes(base)) {
     window.location.hash = '/dashboard';
     return;
   }
 
   const filePath = routes[base];
   if (!filePath) {
-    window.location.hash = token ? '/dashboard' : '/login';
+    window.location.hash = authenticated ? '/dashboard' : '/login';
     return;
   }
 
@@ -86,11 +119,11 @@ async function loadRoute() {
 }
 
 function renderNav(currentBase) {
-  const token = getToken();
+  const authenticated = isTokenValid();
   const nav = document.getElementById('app-nav');
   if (!nav) return;
 
-  if (!token) {
+  if (!authenticated) {
     nav.innerHTML = `
       <div class="nav-inner">
         <span class="nav-brand" onclick="navigate('/dashboard')">🍴 Recipe Organizer</span>
@@ -129,6 +162,11 @@ window.navigate = navigate;
     <header id="app-nav"></header>
     <main id="page"></main>
   `;
+
+  // Load auth utilities
+  const authScript = document.createElement('script');
+  authScript.src = '/frontend/js/auth.js';
+  document.head.appendChild(authScript);
 
   // Add stylesheet if not already present
   if (!document.querySelector('link[href*="main.css"]')) {
