@@ -5,52 +5,51 @@ const recipeSchema = new mongoose.Schema(
     title: {
       type: String,
       required: [true, 'Title is required'],
-      trim: true,
-      maxlength: [200, 'Title cannot exceed 200 characters']
+      trim: true
     },
     ingredients: {
       type: [String],
       required: [true, 'Ingredients are required'],
       validate: {
-        validator: (arr) => Array.isArray(arr) && arr.length > 0,
+        validator: (arr) => arr.length > 0,
         message: 'At least one ingredient is required'
       }
     },
     instructions: {
       type: String,
-      required: [true, 'Instructions are required'],
-      trim: true
+      required: [true, 'Instructions are required']
     },
     cuisineType: {
       type: String,
-      trim: true,
-      default: ''
+      required: [true, 'Cuisine type is required'],
+      enum: {
+        values: ['Italian', 'Mexican', 'Chinese', 'Indian', 'American', 'French', 'Japanese', 'Mediterranean', 'Thai', 'Other'],
+        message: '{VALUE} is not a valid cuisine type'
+      }
     },
     mealCategory: {
       type: String,
-      trim: true,
-      default: ''
+      required: [true, 'Meal category is required'],
+      enum: {
+        values: ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Appetizer', 'Beverage'],
+        message: '{VALUE} is not a valid meal category'
+      }
     },
     difficulty: {
       type: String,
+      required: [true, 'Difficulty is required'],
       enum: {
-        values: ['Easy', 'Medium', 'Hard', ''],
-        message: 'Difficulty must be Easy, Medium, or Hard'
-      },
-      default: ''
+        values: ['Easy', 'Medium', 'Hard'],
+        message: '{VALUE} is not a valid difficulty level'
+      }
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'User reference is required']
+      required: true
     }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
-
-// Index for efficient user-based queries with filters
-recipeSchema.index({ userId: 1, cuisineType: 1, mealCategory: 1, difficulty: 1 });
 
 module.exports = mongoose.model('Recipe', recipeSchema);
