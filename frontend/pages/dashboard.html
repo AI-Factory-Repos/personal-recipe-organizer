@@ -58,6 +58,10 @@
     return 'badge-medium';
   }
 
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   function renderRecipes(recipes) {
     if (!recipes.length) {
       container.innerHTML = `
@@ -68,7 +72,7 @@
       return;
     }
     container.innerHTML = `<div class="recipe-grid">${recipes.map(r => `
-      <div class="recipe-card" onclick="navigate('/recipe/${r._id}')">
+      <div class="recipe-card" onclick="navigate('/recipe/${r._id}')" style="cursor:pointer">
         <h3>${escHtml(r.title)}</h3>
         <div class="recipe-meta">
           <span class="badge badge-cuisine">${escHtml(r.cuisineType)}</span>
@@ -83,38 +87,47 @@
     </div>`;
   }
 
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  async function loadRecipes(params = {}) {
+  async function loadRecipes(params) {
+    params = params || {};
     const token = localStorage.getItem('recipeOrganizerToken');
     const qs = new URLSearchParams();
     if (params.cuisine) qs.set('cuisine', params.cuisine);
     if (params.mealCategory) qs.set('mealCategory', params.mealCategory);
     if (params.difficulty) qs.set('difficulty', params.difficulty);
     const url = '/api/recipes' + (qs.toString() ? '?' + qs.toString() : '');
+    container.innerHTML = '<div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>';
     try {
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.status === 401) { window.logout(); return; }
       const data = await res.json();
       renderRecipes(data.recipes || []);
     } catch (err) {
-      container.innerHTML = '<p class="alert alert-error">Failed to load recipes.</p>';
+      container.innerHTML = '<p class="alert alert-error">Failed to load recipes. Please try again.</p>';
     }
   }
 
   window.deleteRecipe = async function(id) {
-    if (!confirm('Delete this recipe?')) return;
+    if (!confirm('Are you sure you want to delete this recipe?')) return;
     const token = localStorage.getItem('recipeOrganizerToken');
     try {
       const res = await fetch(`/api/recipes/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) loadRecipes();
-      else alert('Delete failed.');
-    } catch { alert('Delete failed.'); }
+      if (res.ok) {
+        loadRecipes({
+          cuisine: document.getElementById('filter-cuisine').value,
+          mealCategory: document.getElementById('filter-meal').value,
+          difficulty: document.getElementById('filter-difficulty').value
+        });
+      } else {
+        alert('Failed to delete recipe.');
+      }
+    } catch (err) {
+      alert('Failed to delete recipe.');
+    }
   };
 
   document.getElementById('filter-btn').addEventListener('click', function() {
