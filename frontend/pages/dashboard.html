@@ -90,21 +90,30 @@
   async function loadRecipes(params) {
     params = params || {};
     const token = localStorage.getItem('recipeOrganizerToken');
+    if (!token) { window.location.hash = '/login'; return; }
+
     const qs = new URLSearchParams();
     if (params.cuisine) qs.set('cuisine', params.cuisine);
     if (params.mealCategory) qs.set('mealCategory', params.mealCategory);
     if (params.difficulty) qs.set('difficulty', params.difficulty);
     const url = '/api/recipes' + (qs.toString() ? '?' + qs.toString() : '');
+
     container.innerHTML = '<div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>';
+
     try {
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       if (res.status === 401) { window.logout(); return; }
+      if (!res.ok) throw new Error('Server error: ' + res.status);
       const data = await res.json();
       renderRecipes(data.recipes || []);
     } catch (err) {
       container.innerHTML = '<p class="alert alert-error">Failed to load recipes. Please try again.</p>';
+      console.error(err);
     }
   }
 
@@ -114,8 +123,12 @@
     try {
       const res = await fetch(`/api/recipes/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+      if (res.status === 401) { window.logout(); return; }
       if (res.ok) {
         loadRecipes({
           cuisine: document.getElementById('filter-cuisine').value,
@@ -126,6 +139,7 @@
         alert('Failed to delete recipe.');
       }
     } catch (err) {
+      console.error(err);
       alert('Failed to delete recipe.');
     }
   };
@@ -145,6 +159,7 @@
     loadRecipes();
   });
 
+  // Initial load
   loadRecipes();
 })();
 </script>
