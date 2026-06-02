@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Recipe – Recipe Organizer</title>
+  <link rel="stylesheet" href="/frontend/css/main.css" />
+</head>
+<body>
+<div class="page-header">
+  <h1>New Recipe</h1>
+  <button class="btn btn-secondary" onclick="navigate('/dashboard')">&larr; Back</button>
+</div>
+
+<div class="form-card">
+  <div id="form-alert" class="alert alert-error" style="display:none"></div>
+
+  <form id="create-recipe-form">
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" placeholder="Recipe title" required />
+    </div>
+
+    <div class="form-group">
+      <label>Ingredients</label>
+      <div id="ingredients-list">
+        <div class="ingredient-row">
+          <input type="text" placeholder="e.g. 2 cups flour" required />
+          <button type="button" class="btn btn-secondary remove-ing" style="display:none">✕</button>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary" id="add-ingredient" style="margin-top:0.5rem">+ Add Ingredient</button>
+    </div>
+
+    <div class="form-group">
+      <label for="instructions">Instructions</label>
+      <textarea id="instructions" placeholder="Step-by-step cooking instructions…" required></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="cuisineType">Cuisine Type</label>
+        <select id="cuisineType" required>
+          <option value="">Select cuisine…</option>
+          <option>Italian</option><option>Mexican</option><option>Chinese</option>
+          <option>Indian</option><option>American</option><option>French</option>
+          <option>Japanese</option><option>Mediterranean</option><option>Thai</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="mealCategory">Meal Category</label>
+        <select id="mealCategory" required>
+          <option value="">Select category…</option>
+          <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
+          <option>Snack</option><option>Dessert</option><option>Appetizer</option>
+          <option>Beverage</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="difficulty">Difficulty</label>
+      <select id="difficulty" required>
+        <option value="">Select difficulty…</option>
+        <option>Easy</option><option>Medium</option><option>Hard</option>
+      </select>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="submit-btn">Save Recipe</button>
+      <button type="button" class="btn btn-secondary" onclick="navigate('/dashboard')">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function() {
+  const alertEl = document.getElementById('form-alert');
+  const submitBtn = document.getElementById('submit-btn');
+  const ingList = document.getElementById('ingredients-list');
+
+  function showError(msg) {
+    alertEl.textContent = msg;
+    alertEl.style.display = 'block';
+    alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function updateRemoveButtons() {
+    const rows = ingList.querySelectorAll('.ingredient-row');
+    rows.forEach((row, i) => {
+      row.querySelector('.remove-ing').style.display = rows.length > 1 ? 'inline-flex' : 'none';
+    });
+  }
+
+  document.getElementById('add-ingredient').addEventListener('click', function() {
+    const row = document.createElement('div');
+    row.className = 'ingredient-row';
+    row.innerHTML = '<input type="text" placeholder="e.g. 1 tsp salt" required /><button type="button" class="btn btn-secondary remove-ing">✕</button>';
+    row.querySelector('.remove-ing').addEventListener('click', function() {
+      row.remove();
+      updateRemoveButtons();
+    });
+    ingList.appendChild(row);
+    updateRemoveButtons();
+    row.querySelector('input').focus();
+  });
+
+  ingList.querySelector('.remove-ing').addEventListener('click', function(e) {
+    e.target.closest('.ingredient-row').remove();
+    updateRemoveButtons();
+  });
+
+  document.getElementById('create-recipe-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    alertEl.style.display = 'none';
+
+    const ingredients = Array.from(ingList.querySelectorAll('input'))
+      .map(i => i.value.trim()).filter(Boolean);
+    if (!ingredients.length) { showError('Add at least one ingredient.'); return; }
+
+    const body = {
+      title: document.getElementById('title').value.trim(),
+      ingredients,
+      instructions: document.getElementById('instructions').value.trim(),
+      cuisineType: document.getElementById('cuisineType').value,
+      mealCategory: document.getElementById('mealCategory').value,
+      difficulty: document.getElementById('difficulty').value
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Saving…';
+
+    const token = localStorage.getItem('recipeOrganizerToken');
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create recipe');
+      navigate('/dashboard');
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save Recipe';
+    }
+  });
+})();
+</script>
+</body>
+</html>
