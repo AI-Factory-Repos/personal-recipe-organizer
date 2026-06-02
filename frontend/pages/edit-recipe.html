@@ -22,8 +22,8 @@
 <script>
 (function() {
   const recipeId = window.__routeParam;
-  const wrapper = document.getElementById('edit-form-wrapper');
-  const alertEl = document.getElementById('form-alert');
+  const wrapper  = document.getElementById('edit-form-wrapper');
+  const alertEl  = document.getElementById('form-alert');
 
   function showError(msg) {
     alertEl.textContent = msg;
@@ -139,7 +139,7 @@
     });
 
     // Populate ingredients
-    var ingList = document.getElementById('ingredients-list');
+    var ingList     = document.getElementById('ingredients-list');
     var ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
     if (ingredients.length) {
       ingredients.forEach(function(ing) { addIngredientRow(ingList, ing); });
@@ -148,85 +148,89 @@
     }
     updateRemoveButtons(ingList);
 
+    // Add ingredient button
     document.getElementById('add-ingredient').addEventListener('click', function() {
       var row = addIngredientRow(ingList, '');
       row.querySelector('input').focus();
     });
 
+    // Submit
     document.getElementById('edit-recipe-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       hideAlert();
-      var submitBtn = document.getElementById('submit-btn');
 
-      var ingInputs = Array.from(ingList.querySelectorAll('input'))
+      var ingInputs = ingList.querySelectorAll('.ingredient-row input');
+      var ingredients = Array.from(ingInputs)
         .map(function(i) { return i.value.trim(); })
         .filter(Boolean);
 
-      var title = document.getElementById('title').value.trim();
-      var instructions = document.getElementById('instructions').value.trim();
-      var cuisineType = document.getElementById('cuisineType').value;
-      var mealCategory = document.getElementById('mealCategory').value;
-      var difficulty = document.getElementById('difficulty').value;
+      var fields = {
+        title:        document.getElementById('title').value.trim(),
+        ingredients:  ingredients,
+        instructions: document.getElementById('instructions').value.trim(),
+        cuisineType:  document.getElementById('cuisineType').value,
+        mealCategory: document.getElementById('mealCategory').value,
+        difficulty:   document.getElementById('difficulty').value,
+      };
 
-      if (!title) { showError('Recipe title is required.'); return; }
-      if (!ingInputs.length) { showError('Add at least one ingredient.'); return; }
-      if (!instructions) { showError('Instructions are required.'); return; }
-      if (!cuisineType) { showError('Please select a cuisine type.'); return; }
-      if (!mealCategory) { showError('Please select a meal category.'); return; }
-      if (!difficulty) { showError('Please select a difficulty.'); return; }
+      if (!fields.title)               { showError('Recipe title is required.');       return; }
+      if (!fields.ingredients.length)  { showError('Add at least one ingredient.');    return; }
+      if (!fields.instructions)        { showError('Instructions are required.');      return; }
+      if (!fields.cuisineType)         { showError('Please select a cuisine type.');   return; }
+      if (!fields.mealCategory)        { showError('Please select a meal category.'); return; }
+      if (!fields.difficulty)          { showError('Please select a difficulty.');     return; }
 
-      var body = { title, ingredients: ingInputs, instructions, cuisineType, mealCategory, difficulty };
-
+      var submitBtn = document.getElementById('submit-btn');
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="spinner"></span> Updating&hellip;';
+      submitBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
-      var token = localStorage.getItem('recipeOrganizerToken');
       try {
-        var res = await fetch('/api/recipes/' + recipeId, {
+        const res = await authFetch('/api/recipes/' + recipeId, {
           method: 'PUT',
-          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+          body: JSON.stringify(fields),
         });
-        var data = await res.json();
+        const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Failed to update recipe.');
-        navigate('/recipe/' + recipeId);
+        showSuccess('Recipe updated successfully!');
+        setTimeout(function() { navigate('/dashboard'); }, 1200);
       } catch (err) {
-        showError(err.message);
+        if (err.message !== 'Session expired. Please log in again.') {
+          showError(err.message);
+        }
         submitBtn.disabled = false;
         submitBtn.textContent = 'Update Recipe';
       }
     });
   }
 
-  // Load recipe data
-  if (!recipeId) {
-    wrapper.innerHTML = '<p style="color:var(--color-danger)">No recipe ID found.</p>';
-    return;
+  /* ── Load recipe ── */
+  async function loadRecipe() {
+    if (!recipeId) {
+      wrapper.innerHTML = '<div class="alert alert-error">No recipe ID provided.</div>';
+      return;
+    }
+    try {
+      const res  = await authFetch('/api/recipes');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load recipe.');
+
+      const recipe = (data.recipes || []).find(function(r) {
+        return (r.id || r._id) === recipeId;
+      });
+
+      if (!recipe) {
+        wrapper.innerHTML = '<div class="alert alert-error">Recipe not found.</div>';
+        return;
+      }
+      renderForm(recipe);
+    } catch (err) {
+      if (err.message !== 'Session expired. Please log in again.') {
+        wrapper.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+      }
+    }
   }
 
-  (async function loadRecipe() {
-    var token = localStorage.getItem('recipeOrganizerToken');
-    try {
-      var res = await fetch('/api/recipes/' + recipeId, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (!res.ok) {
-        // Fallback: load from list
-        var listRes = await fetch('/api/recipes', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        var listData = await listRes.json();
-        var recipe = (listData.recipes || []).find(function(r) { return r._id === recipeId || r.id === recipeId; });
-        if (!recipe) throw new Error('Recipe not found.');
-        renderForm(recipe);
-      } else {
-        var data = await res.json();
-        renderForm(data.recipe || data);
-      }
-    } catch (err) {
-      wrapper.innerHTML = '<p style="color:var(--color-danger);padding:1rem">' + err.message + '</p>';
-    }
-  })();
+  loadRecipe();
 })();
 </script>
 </body>
