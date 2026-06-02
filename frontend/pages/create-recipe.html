@@ -146,21 +146,21 @@
 
   /* ── Validation ── */
   function validate(fields) {
-    if (!fields.title)              return 'Recipe title is required.';
-    if (!fields.ingredients.length) return 'Add at least one ingredient.';
-    if (!fields.instructions)       return 'Instructions are required.';
-    if (!fields.cuisineType)        return 'Please select a cuisine type.';
-    if (!fields.mealCategory)       return 'Please select a meal category.';
-    if (!fields.difficulty)         return 'Please select a difficulty level.';
+    if (!fields.title)               return 'Recipe title is required.';
+    if (!fields.ingredients.length)  return 'Add at least one ingredient.';
+    if (!fields.instructions)        return 'Instructions are required.';
+    if (!fields.cuisineType)         return 'Please select a cuisine type.';
+    if (!fields.mealCategory)        return 'Please select a meal category.';
+    if (!fields.difficulty)          return 'Please select a difficulty level.';
     return null;
   }
 
-  /* ── Form submit ── */
+  /* ── Submit ── */
   document.getElementById('create-recipe-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     hideError();
 
-    const ingredients = Array.from(ingList.querySelectorAll('input'))
+    const ingredients = Array.from(ingList.querySelectorAll('.ingredient-row input'))
       .map(function(i) { return i.value.trim(); })
       .filter(Boolean);
 
@@ -170,40 +170,27 @@
       instructions: document.getElementById('instructions').value.trim(),
       cuisineType:  document.getElementById('cuisineType').value,
       mealCategory: document.getElementById('mealCategory').value,
-      difficulty:   document.getElementById('difficulty').value
+      difficulty:   document.getElementById('difficulty').value,
     };
 
-    const validationError = validate(fields);
-    if (validationError) {
-      showError(validationError);
-      return;
-    }
+    const err = validate(fields);
+    if (err) { showError(err); return; }
 
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
-    const token = localStorage.getItem('recipeOrganizerToken');
-
     try {
-      const res = await fetch('/api/recipes', {
+      const res = await authFetch('/api/recipes', {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(fields)
+        body: JSON.stringify(fields),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to create recipe. Please try again.');
-      }
-
-      // Success — navigate to dashboard
+      if (!res.ok) throw new Error(data.message || 'Failed to save recipe.');
       navigate('/dashboard');
     } catch (err) {
-      showError(err.message);
+      if (err.message !== 'Session expired. Please log in again.') {
+        showError(err.message);
+      }
       submitBtn.disabled = false;
       submitBtn.textContent = 'Save Recipe';
     }
