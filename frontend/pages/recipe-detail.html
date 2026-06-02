@@ -14,112 +14,45 @@
       box-shadow: var(--shadow);
       max-width: 780px;
     }
-
-    .recipe-detail-card h2 {
+    .recipe-detail-title {
       font-size: 1.8rem;
-      color: var(--color-text);
+      font-weight: 700;
+      color: var(--color-primary);
       margin-bottom: 0.75rem;
     }
-
-    .recipe-meta {
+    .recipe-detail-badges {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       margin-bottom: 1.5rem;
     }
-
-    .badge {
-      display: inline-block;
-      background: var(--color-bg);
-      border: 1px solid var(--color-border);
-      border-radius: 999px;
-      padding: 0.2rem 0.75rem;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--color-text-muted);
-    }
-
-    .badge-primary {
-      background: var(--color-primary);
-      color: #fff;
-      border-color: var(--color-primary);
-    }
-
-    .recipe-section {
-      margin-bottom: 1.75rem;
-    }
-
-    .recipe-section h3 {
-      font-size: 1rem;
+    .recipe-section-label {
+      font-size: 0.8rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
       color: var(--color-text-muted);
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-
-    .ingredients-list {
-      list-style: disc;
-      padding-left: 1.4rem;
-    }
-
-    .ingredients-list li {
-      margin-bottom: 0.35rem;
-      font-size: 0.97rem;
-    }
-
-    .instructions-text {
-      white-space: pre-wrap;
-      line-height: 1.75;
-      font-size: 0.97rem;
-      color: var(--color-text);
-    }
-
-    .recipe-actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin-top: 2rem;
-      padding-top: 1.25rem;
-      border-top: 1px solid var(--color-border);
-    }
-
-    .confirm-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .confirm-dialog {
-      background: var(--color-surface);
-      border-radius: var(--radius);
-      padding: 2rem;
-      max-width: 420px;
-      width: 90%;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    }
-
-    .confirm-dialog h3 {
-      font-size: 1.15rem;
       margin-bottom: 0.5rem;
     }
-
-    .confirm-dialog p {
-      color: var(--color-text-muted);
-      font-size: 0.95rem;
+    .recipe-section {
       margin-bottom: 1.5rem;
     }
-
-    .confirm-actions {
+    .recipe-ingredients-list {
+      list-style: disc;
+      padding-left: 1.4rem;
+      line-height: 1.8;
+    }
+    .recipe-instructions {
+      white-space: pre-wrap;
+      line-height: 1.8;
+      color: var(--color-text);
+    }
+    .recipe-detail-actions {
       display: flex;
       gap: 0.75rem;
-      justify-content: flex-end;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--color-border);
     }
   </style>
 </head>
@@ -129,151 +62,101 @@
   <button class="btn btn-secondary" onclick="navigate('/dashboard')">&larr; Back</button>
 </div>
 
-<div id="detail-alert" class="alert alert-error" style="display:none"></div>
 <div id="detail-container">
   <div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>
 </div>
 
-<!-- Delete confirmation dialog (hidden by default) -->
-<div id="confirm-overlay" class="confirm-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-  <div class="confirm-dialog">
-    <h3 id="confirm-title">Delete Recipe?</h3>
-    <p>This action cannot be undone. The recipe will be permanently removed.</p>
-    <div class="confirm-actions">
-      <button class="btn btn-secondary" id="confirm-cancel-btn">Cancel</button>
-      <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
-    </div>
-  </div>
-</div>
-
 <script>
 (function() {
-  var recipeId = window.__routeParam;
-  var container = document.getElementById('detail-container');
-  var alertEl = document.getElementById('detail-alert');
-
-  function showError(msg) {
-    alertEl.textContent = msg;
-    alertEl.className = 'alert alert-error';
-    alertEl.style.display = 'block';
-    alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  const recipeId  = window.__routeParam;
+  const container = document.getElementById('detail-container');
 
   function escHtml(str) {
-    return String(str || '')
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
 
-  function renderRecipe(recipe) {
-    var id = recipe._id || recipe.id;
-    var ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+  function showError(msg) {
+    container.innerHTML = `<div class="alert alert-error">${escHtml(msg)}</div>`;
+  }
+
+  async function loadRecipe() {
+    if (!recipeId) {
+      showError('No recipe ID provided.');
+      return;
+    }
+    try {
+      const res  = await authFetch('/api/recipes');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load recipe.');
+
+      const recipe = (data.recipes || []).find(function(r) {
+        return (r.id || r._id) === recipeId;
+      });
+
+      if (!recipe) {
+        showError('Recipe not found.');
+        return;
+      }
+
+      renderRecipe(recipe);
+    } catch (err) {
+      if (err.message !== 'Session expired. Please log in again.') {
+        showError(err.message);
+      }
+    }
+  }
+
+  function renderRecipe(r) {
+    const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
+    const id = r.id || r._id;
 
     container.innerHTML = `
       <div class="recipe-detail-card">
-        <h2>${escHtml(recipe.title)}</h2>
-        <div class="recipe-meta">
-          ${recipe.cuisineType ? '<span class="badge badge-primary">' + escHtml(recipe.cuisineType) + '</span>' : ''}
-          ${recipe.mealCategory ? '<span class="badge">' + escHtml(recipe.mealCategory) + '</span>' : ''}
-          ${recipe.difficulty ? '<span class="badge">' + escHtml(recipe.difficulty) + '</span>' : ''}
+        <h2 class="recipe-detail-title">${escHtml(r.title)}</h2>
+        <div class="recipe-detail-badges">
+          <span class="badge badge-cuisine">${escHtml(r.cuisineType)}</span>
+          <span class="badge badge-meal">${escHtml(r.mealCategory)}</span>
+          <span class="badge badge-difficulty badge-difficulty--${(r.difficulty||'').toLowerCase()}">${escHtml(r.difficulty)}</span>
         </div>
-
         <div class="recipe-section">
-          <h3>Ingredients</h3>
-          <ul class="ingredients-list">
-            ${ingredients.map(function(ing) { return '<li>' + escHtml(ing) + '</li>'; }).join('')}
+          <p class="recipe-section-label">Ingredients</p>
+          <ul class="recipe-ingredients-list">
+            ${ingredients.map(function(ing) { return `<li>${escHtml(ing)}</li>`; }).join('')}
           </ul>
         </div>
-
         <div class="recipe-section">
-          <h3>Instructions</h3>
-          <p class="instructions-text">${escHtml(recipe.instructions)}</p>
+          <p class="recipe-section-label">Instructions</p>
+          <p class="recipe-instructions">${escHtml(r.instructions)}</p>
         </div>
-
-        <div class="recipe-actions">
-          <button class="btn btn-primary" id="edit-btn" onclick="navigate('/edit-recipe/${id}')">Edit Recipe</button>
-          <button class="btn btn-danger" id="delete-btn">Delete Recipe</button>
+        <div class="recipe-detail-actions">
+          <button class="btn btn-primary" onclick="navigate('/edit-recipe/${escHtml(id)}')">Edit Recipe</button>
+          <button class="btn btn-danger"  onclick="deleteRecipe('${escHtml(id)}')">Delete Recipe</button>
+          <button class="btn btn-secondary" onclick="navigate('/dashboard')">Back to Dashboard</button>
         </div>
       </div>`;
-
-    // Wire up delete button
-    document.getElementById('delete-btn').addEventListener('click', function() {
-      openConfirmDialog(id);
-    });
   }
 
-  function openConfirmDialog(id) {
-    var overlay = document.getElementById('confirm-overlay');
-    overlay.style.display = 'flex';
-
-    document.getElementById('confirm-cancel-btn').onclick = function() {
-      overlay.style.display = 'none';
-    };
-
-    document.getElementById('confirm-delete-btn').onclick = async function() {
-      var deleteBtn = document.getElementById('confirm-delete-btn');
-      deleteBtn.disabled = true;
-      deleteBtn.innerHTML = '<span class="spinner"></span> Deleting&hellip;';
-
-      var token = localStorage.getItem('recipeOrganizerToken');
-      try {
-        var res = await fetch('/api/recipes/' + id, {
-          method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        var data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Failed to delete recipe.');
-        overlay.style.display = 'none';
-        // Navigate to dashboard after successful delete
-        navigate('/dashboard');
-      } catch (err) {
-        overlay.style.display = 'none';
-        showError(err.message);
-        deleteBtn.disabled = false;
-        deleteBtn.textContent = 'Delete Recipe';
-      }
-    };
-
-    // Close on backdrop click
-    overlay.onclick = function(e) {
-      if (e.target === overlay) overlay.style.display = 'none';
-    };
-  }
-
-  if (!recipeId) {
-    container.innerHTML = '<p style="color:var(--color-danger)">No recipe ID provided.</p>';
-    return;
-  }
-
-  (async function loadRecipe() {
-    var token = localStorage.getItem('recipeOrganizerToken');
+  window.deleteRecipe = async function(id) {
+    if (!confirm('Delete this recipe? This cannot be undone.')) return;
     try {
-      // Try direct fetch; fall back to list lookup since GET /api/recipes/:id may not exist
-      var res = await fetch('/api/recipes/' + recipeId, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (res.ok) {
-        var data = await res.json();
-        renderRecipe(data.recipe || data);
-      } else {
-        // Fallback: load full list and find by id
-        var listRes = await fetch('/api/recipes', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (!listRes.ok) throw new Error('Failed to load recipes.');
-        var listData = await listRes.json();
-        var recipe = (listData.recipes || []).find(function(r) {
-          return r._id === recipeId || r.id === recipeId;
-        });
-        if (!recipe) throw new Error('Recipe not found.');
-        renderRecipe(recipe);
+      const res = await authFetch('/api/recipes/' + id, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Delete failed.');
       }
+      navigate('/dashboard');
     } catch (err) {
-      container.innerHTML = '<p style="color:var(--color-danger);padding:1rem">' + err.message + '</p>';
+      if (err.message !== 'Session expired. Please log in again.') {
+        alert(err.message);
+      }
     }
-  })();
+  };
+
+  loadRecipe();
 })();
 </script>
 </body>
