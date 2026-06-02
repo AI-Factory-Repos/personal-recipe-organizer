@@ -5,6 +5,92 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Recipes – Recipe Organizer</title>
   <link rel="stylesheet" href="/frontend/css/main.css" />
+  <style>
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .filter-bar .form-group {
+      margin-bottom: 0;
+      min-width: 140px;
+      flex: 1 1 140px;
+    }
+
+    .filter-bar .form-group label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .filter-bar .form-group select {
+      padding: 0.45rem 0.7rem;
+      font-size: 0.9rem;
+    }
+
+    .filter-bar .filter-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0;
+      flex-shrink: 0;
+    }
+
+    .filter-active-indicator {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+      align-items: center;
+      min-height: 1.6rem;
+    }
+
+    .filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: var(--color-primary);
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem 0.2rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .filter-tag button {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      line-height: 1;
+      padding: 0;
+      opacity: 0.8;
+    }
+    .filter-tag button:hover { opacity: 1; }
+
+    .filter-results-count {
+      font-size: 0.88rem;
+      color: var(--color-text-muted);
+      margin-left: auto;
+    }
+
+    .select--active {
+      border-color: var(--color-primary) !important;
+      box-shadow: 0 0 0 2px rgba(224, 123, 57, 0.18);
+    }
+  </style>
 </head>
 <body>
 <div class="dashboard-header">
@@ -40,9 +126,22 @@
       <option>Easy</option><option>Medium</option><option>Hard</option>
     </select>
   </div>
-  <button class="btn btn-secondary" id="filter-btn">Apply Filters</button>
-  <button class="btn btn-secondary" id="clear-btn">Clear</button>
+  <div class="form-group">
+    <label for="sort-by">Sort By</label>
+    <select id="sort-by">
+      <option value="date-desc">Newest First</option>
+      <option value="date-asc">Oldest First</option>
+      <option value="title-asc">Title A–Z</option>
+      <option value="title-desc">Title Z–A</option>
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button class="btn btn-secondary" id="clear-btn">Clear Filters</button>
+  </div>
 </div>
+
+<!-- Active filter tags + result count -->
+<div class="filter-active-indicator" id="filter-tags"></div>
 
 <div id="recipes-container">
   <div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>
@@ -51,7 +150,12 @@
 <script>
 (function() {
   const container = document.getElementById('recipes-container');
+  const filterTagsEl = document.getElementById('filter-tags');
 
+  // All recipes fetched from API (unfiltered source of truth)
+  let allRecipes = [];
+
+  /* ── Helpers ── */
   function diffBadgeClass(diff) {
     if (diff === 'Easy') return 'badge-easy';
     if (diff === 'Hard') return 'badge-hard';
@@ -62,16 +166,131 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function renderRecipes(recipes) {
+  /* ── Read current filter values ── */
+  function getFilters() {
+    return {
+      cuisine:      document.getElementById('filter-cuisine').value,
+      mealCategory: document.getElementById('filter-meal').value,
+      difficulty:   document.getElementById('filter-difficulty').value,
+      sortBy:       document.getElementById('sort-by').value
+    };
+  }
+
+  /* ── Update active-state styling on selects ── */
+  function syncSelectStyles(filters) {
+    const cuisineSel = document.getElementById('filter-cuisine');
+    const mealSel    = document.getElementById('filter-meal');
+    const diffSel    = document.getElementById('filter-difficulty');
+
+    cuisineSel.classList.toggle('select--active', !!filters.cuisine);
+    mealSel.classList.toggle('select--active',    !!filters.mealCategory);
+    diffSel.classList.toggle('select--active',    !!filters.difficulty);
+  }
+
+  /* ── Render active filter tags ── */
+  function renderFilterTags(filters, count, total) {
+    const tags = [];
+
+    if (filters.cuisine) {
+      tags.push({ label: 'Cuisine: ' + filters.cuisine, clear: function() {
+        document.getElementById('filter-cuisine').value = '';
+        applyFilters();
+      }});
+    }
+    if (filters.mealCategory) {
+      tags.push({ label: 'Category: ' + filters.mealCategory, clear: function() {
+        document.getElementById('filter-meal').value = '';
+        applyFilters();
+      }});
+    }
+    if (filters.difficulty) {
+      tags.push({ label: 'Difficulty: ' + filters.difficulty, clear: function() {
+        document.getElementById('filter-difficulty').value = '';
+        applyFilters();
+      }});
+    }
+
+    filterTagsEl.innerHTML = '';
+
+    tags.forEach(function(tag, i) {
+      const span = document.createElement('span');
+      span.className = 'filter-tag';
+      span.innerHTML = escHtml(tag.label) + '<button aria-label="Remove filter">&#x2715;</button>';
+      span.querySelector('button').addEventListener('click', tag.clear);
+      filterTagsEl.appendChild(span);
+    });
+
+    if (total > 0) {
+      const countEl = document.createElement('span');
+      countEl.className = 'filter-results-count';
+      const activeFilters = tags.length > 0;
+      countEl.textContent = activeFilters
+        ? 'Showing ' + count + ' of ' + total + ' recipe' + (total !== 1 ? 's' : '')
+        : total + ' recipe' + (total !== 1 ? 's' : '');
+      filterTagsEl.appendChild(countEl);
+    }
+  }
+
+  /* ── Client-side filter + sort ── */
+  function applyFilters() {
+    const filters = getFilters();
+    syncSelectStyles(filters);
+
+    let result = allRecipes.slice();
+
+    if (filters.cuisine) {
+      result = result.filter(function(r) { return r.cuisineType === filters.cuisine; });
+    }
+    if (filters.mealCategory) {
+      result = result.filter(function(r) { return r.mealCategory === filters.mealCategory; });
+    }
+    if (filters.difficulty) {
+      result = result.filter(function(r) { return r.difficulty === filters.difficulty; });
+    }
+
+    // Sort
+    result.sort(function(a, b) {
+      switch (filters.sortBy) {
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'date-asc':
+          return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'date-desc':
+        default:
+          return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+    });
+
+    renderFilterTags(filters, result.length, allRecipes.length);
+    renderRecipes(result, filters);
+  }
+
+  /* ── Render recipe cards ── */
+  function renderRecipes(recipes, filters) {
+    var hasActiveFilter = (filters && (filters.cuisine || filters.mealCategory || filters.difficulty));
+
     if (!recipes.length) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <p>You haven't added any recipes yet.</p>
-          <a href="#/create-recipe" class="btn btn-primary">+ Add your first recipe</a>
-        </div>`;
+      if (hasActiveFilter) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No recipes match the selected filters.</p>
+            <button class="btn btn-secondary" id="clear-from-empty">Clear Filters</button>
+          </div>`;
+        document.getElementById('clear-from-empty').addEventListener('click', clearFilters);
+      } else {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>You haven't added any recipes yet.</p>
+            <a href="#/create-recipe" class="btn btn-primary">+ Add your first recipe</a>
+          </div>`;
+      }
       return;
     }
-    container.innerHTML = `<div class="recipe-grid">${recipes.map(r => `
+
+    container.innerHTML = '<div class="recipe-grid">' + recipes.map(function(r) {
+      return `
       <div class="recipe-card" onclick="navigate('/recipe/${r._id}')" style="cursor:pointer">
         <h3>${escHtml(r.title)}</h3>
         <div class="recipe-meta">
@@ -83,58 +302,52 @@
           <button class="btn btn-secondary" onclick="navigate('/edit-recipe/${r._id}')">Edit</button>
           <button class="btn btn-danger" onclick="deleteRecipe('${r._id}')">Delete</button>
         </div>
-      </div>`).join('')}
-    </div>`;
+      </div>`;
+    }).join('') + '</div>';
   }
 
-  async function loadRecipes(params) {
-    params = params || {};
+  /* ── Fetch all recipes from API ── */
+  async function loadRecipes() {
     const token = localStorage.getItem('recipeOrganizerToken');
     if (!token) { window.location.hash = '/login'; return; }
-
-    const qs = new URLSearchParams();
-    if (params.cuisine) qs.set('cuisine', params.cuisine);
-    if (params.mealCategory) qs.set('mealCategory', params.mealCategory);
-    if (params.difficulty) qs.set('difficulty', params.difficulty);
-    const url = '/api/recipes' + (qs.toString() ? '?' + qs.toString() : '');
 
     container.innerHTML = '<div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>';
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch('/api/recipes', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': 'Bearer ' + token,
           'Content-Type': 'application/json'
         }
       });
       if (res.status === 401) { window.logout(); return; }
       if (!res.ok) throw new Error('Server error: ' + res.status);
       const data = await res.json();
-      renderRecipes(data.recipes || []);
+      allRecipes = data.recipes || [];
+      applyFilters();
     } catch (err) {
       container.innerHTML = '<p class="alert alert-error">Failed to load recipes. Please try again.</p>';
       console.error(err);
     }
   }
 
+  /* ── Delete ── */
   window.deleteRecipe = async function(id) {
     if (!confirm('Are you sure you want to delete this recipe?')) return;
     const token = localStorage.getItem('recipeOrganizerToken');
     try {
-      const res = await fetch(`/api/recipes/${id}`, {
+      const res = await fetch('/api/recipes/' + id, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': 'Bearer ' + token,
           'Content-Type': 'application/json'
         }
       });
       if (res.status === 401) { window.logout(); return; }
       if (res.ok) {
-        loadRecipes({
-          cuisine: document.getElementById('filter-cuisine').value,
-          mealCategory: document.getElementById('filter-meal').value,
-          difficulty: document.getElementById('filter-difficulty').value
-        });
+        // Remove from local array and re-render
+        allRecipes = allRecipes.filter(function(r) { return r._id !== id; });
+        applyFilters();
       } else {
         alert('Failed to delete recipe.');
       }
@@ -144,22 +357,23 @@
     }
   };
 
-  document.getElementById('filter-btn').addEventListener('click', function() {
-    loadRecipes({
-      cuisine: document.getElementById('filter-cuisine').value,
-      mealCategory: document.getElementById('filter-meal').value,
-      difficulty: document.getElementById('filter-difficulty').value
-    });
-  });
-
-  document.getElementById('clear-btn').addEventListener('click', function() {
+  /* ── Clear filters ── */
+  function clearFilters() {
     document.getElementById('filter-cuisine').value = '';
     document.getElementById('filter-meal').value = '';
     document.getElementById('filter-difficulty').value = '';
-    loadRecipes();
-  });
+    document.getElementById('sort-by').value = 'date-desc';
+    applyFilters();
+  }
 
-  // Initial load
+  /* ── Event listeners ── */
+  document.getElementById('filter-cuisine').addEventListener('change', applyFilters);
+  document.getElementById('filter-meal').addEventListener('change', applyFilters);
+  document.getElementById('filter-difficulty').addEventListener('change', applyFilters);
+  document.getElementById('sort-by').addEventListener('change', applyFilters);
+  document.getElementById('clear-btn').addEventListener('click', clearFilters);
+
+  /* ── Initial load ── */
   loadRecipes();
 })();
 </script>
