@@ -15,55 +15,72 @@
 <div class="form-card">
   <div id="form-alert" class="alert alert-error" style="display:none"></div>
 
-  <form id="create-recipe-form">
+  <form id="create-recipe-form" novalidate>
+    <!-- Title -->
     <div class="form-group">
-      <label for="title">Title</label>
+      <label for="title">Title <span style="color:var(--color-danger)">*</span></label>
       <input type="text" id="title" placeholder="Recipe title" required />
     </div>
 
+    <!-- Ingredients -->
     <div class="form-group">
-      <label>Ingredients</label>
+      <label>Ingredients <span style="color:var(--color-danger)">*</span></label>
       <div id="ingredients-list">
         <div class="ingredient-row">
-          <input type="text" placeholder="e.g. 2 cups flour" required />
-          <button type="button" class="btn btn-secondary remove-ing" style="display:none">✕</button>
+          <input type="text" placeholder="e.g. 2 cups flour" />
+          <button type="button" class="btn btn-secondary remove-ing" style="display:none" aria-label="Remove ingredient">&#x2715;</button>
         </div>
       </div>
       <button type="button" class="btn btn-secondary" id="add-ingredient" style="margin-top:0.5rem">+ Add Ingredient</button>
     </div>
 
+    <!-- Instructions -->
     <div class="form-group">
-      <label for="instructions">Instructions</label>
-      <textarea id="instructions" placeholder="Step-by-step cooking instructions…" required></textarea>
+      <label for="instructions">Instructions <span style="color:var(--color-danger)">*</span></label>
+      <textarea id="instructions" rows="6" placeholder="Step-by-step cooking instructions…" required></textarea>
     </div>
 
+    <!-- Cuisine + Meal Category -->
     <div class="form-row">
       <div class="form-group">
-        <label for="cuisineType">Cuisine Type</label>
+        <label for="cuisineType">Cuisine Type <span style="color:var(--color-danger)">*</span></label>
         <select id="cuisineType" required>
           <option value="">Select cuisine…</option>
-          <option>Italian</option><option>Mexican</option><option>Chinese</option>
-          <option>Indian</option><option>American</option><option>French</option>
-          <option>Japanese</option><option>Mediterranean</option><option>Thai</option>
+          <option>Italian</option>
+          <option>Mexican</option>
+          <option>Chinese</option>
+          <option>Indian</option>
+          <option>American</option>
+          <option>French</option>
+          <option>Japanese</option>
+          <option>Mediterranean</option>
+          <option>Thai</option>
           <option>Other</option>
         </select>
       </div>
       <div class="form-group">
-        <label for="mealCategory">Meal Category</label>
+        <label for="mealCategory">Meal Category <span style="color:var(--color-danger)">*</span></label>
         <select id="mealCategory" required>
           <option value="">Select category…</option>
-          <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
-          <option>Snack</option><option>Dessert</option><option>Appetizer</option>
+          <option>Breakfast</option>
+          <option>Lunch</option>
+          <option>Dinner</option>
+          <option>Snack</option>
+          <option>Dessert</option>
+          <option>Appetizer</option>
           <option>Beverage</option>
         </select>
       </div>
     </div>
 
+    <!-- Difficulty -->
     <div class="form-group">
-      <label for="difficulty">Difficulty</label>
+      <label for="difficulty">Difficulty <span style="color:var(--color-danger)">*</span></label>
       <select id="difficulty" required>
         <option value="">Select difficulty…</option>
-        <option>Easy</option><option>Medium</option><option>Hard</option>
+        <option>Easy</option>
+        <option>Medium</option>
+        <option>Hard</option>
       </select>
     </div>
 
@@ -76,70 +93,107 @@
 
 <script>
 (function() {
-  const alertEl = document.getElementById('form-alert');
+  const alertEl   = document.getElementById('form-alert');
   const submitBtn = document.getElementById('submit-btn');
-  const ingList = document.getElementById('ingredients-list');
+  const ingList   = document.getElementById('ingredients-list');
 
+  /* ── Helpers ── */
   function showError(msg) {
     alertEl.textContent = msg;
     alertEl.style.display = 'block';
     alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  function hideError() {
+    alertEl.style.display = 'none';
+  }
+
+  /* ── Ingredient rows ── */
   function updateRemoveButtons() {
     const rows = ingList.querySelectorAll('.ingredient-row');
-    rows.forEach((row, i) => {
+    rows.forEach(function(row) {
       row.querySelector('.remove-ing').style.display = rows.length > 1 ? 'inline-flex' : 'none';
     });
   }
 
-  document.getElementById('add-ingredient').addEventListener('click', function() {
-    const row = document.createElement('div');
+  function addIngredientRow(value) {
+    var row = document.createElement('div');
     row.className = 'ingredient-row';
-    row.innerHTML = '<input type="text" placeholder="e.g. 1 tsp salt" required /><button type="button" class="btn btn-secondary remove-ing">✕</button>';
+    row.innerHTML =
+      '<input type="text" placeholder="e.g. 1 tsp salt" value="" />' +
+      '<button type="button" class="btn btn-secondary remove-ing" aria-label="Remove ingredient">&#x2715;</button>';
+    if (value) row.querySelector('input').value = value;
     row.querySelector('.remove-ing').addEventListener('click', function() {
       row.remove();
       updateRemoveButtons();
     });
     ingList.appendChild(row);
     updateRemoveButtons();
-    row.querySelector('input').focus();
-  });
+    return row;
+  }
 
+  // Wire up the initial row's remove button
   ingList.querySelector('.remove-ing').addEventListener('click', function(e) {
     e.target.closest('.ingredient-row').remove();
     updateRemoveButtons();
   });
 
+  document.getElementById('add-ingredient').addEventListener('click', function() {
+    var row = addIngredientRow('');
+    updateRemoveButtons();
+    row.querySelector('input').focus();
+  });
+
+  /* ── Validation ── */
+  function validate(fields) {
+    if (!fields.title)        return 'Recipe title is required.';
+    if (!fields.ingredients.length) return 'Add at least one ingredient.';
+    if (!fields.instructions) return 'Instructions are required.';
+    if (!fields.cuisineType)  return 'Please select a cuisine type.';
+    if (!fields.mealCategory) return 'Please select a meal category.';
+    if (!fields.difficulty)   return 'Please select a difficulty level.';
+    return null;
+  }
+
+  /* ── Form submission ── */
   document.getElementById('create-recipe-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    alertEl.style.display = 'none';
+    hideError();
 
-    const ingredients = Array.from(ingList.querySelectorAll('input'))
-      .map(i => i.value.trim()).filter(Boolean);
-    if (!ingredients.length) { showError('Add at least one ingredient.'); return; }
+    var ingredients = Array.from(ingList.querySelectorAll('input'))
+      .map(function(i) { return i.value.trim(); })
+      .filter(Boolean);
 
-    const body = {
-      title: document.getElementById('title').value.trim(),
-      ingredients,
+    var fields = {
+      title:        document.getElementById('title').value.trim(),
+      ingredients:  ingredients,
       instructions: document.getElementById('instructions').value.trim(),
-      cuisineType: document.getElementById('cuisineType').value,
+      cuisineType:  document.getElementById('cuisineType').value,
       mealCategory: document.getElementById('mealCategory').value,
-      difficulty: document.getElementById('difficulty').value
+      difficulty:   document.getElementById('difficulty').value
     };
+
+    var validationError = validate(fields);
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
 
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
-    const token = localStorage.getItem('recipeOrganizerToken');
+    var token = localStorage.getItem('recipeOrganizerToken');
     try {
-      const res = await fetch('/api/recipes', {
+      var res = await fetch('/api/recipes', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(fields)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create recipe');
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create recipe.');
       navigate('/dashboard');
     } catch (err) {
       showError(err.message);
