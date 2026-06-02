@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register – Recipe Organizer</title>
+  <link rel="stylesheet" href="/frontend/css/main.css" />
+</head>
+<body>
+<div class="auth-container">
+  <h1>Create account</h1>
+  <p class="auth-subtitle">Start building your personal recipe collection</p>
+
+  <div id="register-alert" class="alert alert-error" style="display:none"></div>
+
+  <form id="register-form">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="chef_jane" minlength="3" required />
+    </div>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" placeholder="you@example.com" required />
+    </div>
+    <div class="form-group">
+      <label for="password">Password <span style="font-weight:400;color:var(--color-text-muted)">(min 6 chars)</span></label>
+      <input type="password" id="password" name="password" placeholder="••••••••" minlength="6" required />
+    </div>
+    <button type="submit" class="btn btn-primary btn-full" id="register-btn">Create Account</button>
+  </form>
+
+  <p style="margin-top:1.25rem;font-size:0.9rem;text-align:center;color:var(--color-text-muted)">
+    Already have an account? <a href="#/login">Sign in</a>
+  </p>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('register-form');
+  const alertEl = document.getElementById('register-alert');
+  const btn = document.getElementById('register-btn');
+
+  function showError(msg) {
+    alertEl.textContent = msg;
+    alertEl.style.display = 'block';
+  }
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    alertEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating account…';
+
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Registration failed');
+
+      localStorage.setItem('recipeOrganizerToken', data.token);
+      localStorage.setItem('recipeOrganizerUser', JSON.stringify(data.user));
+      window.location.hash = '/dashboard';
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+    }
+  });
+})();
+</script>
+</body>
+</html>
