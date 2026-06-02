@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recipe – Recipe Organizer</title>
+  <link rel="stylesheet" href="/frontend/css/main.css" />
+</head>
+<body>
+<div id="recipe-detail-content">
+  <div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>
+</div>
+
+<script>
+(function() {
+  const recipeId = window.__routeParam;
+  const container = document.getElementById('recipe-detail-content');
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function diffBadgeClass(diff) {
+    if (diff === 'Easy') return 'badge-easy';
+    if (diff === 'Hard') return 'badge-hard';
+    return 'badge-medium';
+  }
+
+  function renderRecipe(r) {
+    const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
+    container.innerHTML = `
+      <div class="recipe-detail-header">
+        <div>
+          <h1>${escHtml(r.title)}</h1>
+        </div>
+        <div class="detail-actions">
+          <button class="btn btn-secondary" onclick="navigate('/dashboard')">&larr; Back</button>
+          <button class="btn btn-secondary" onclick="navigate('/edit-recipe/${r._id}')">Edit</button>
+          <button class="btn btn-danger" onclick="deleteRecipe('${r._id}')">Delete</button>
+        </div>
+      </div>
+      <div class="recipe-detail-meta">
+        <span class="badge badge-cuisine">${escHtml(r.cuisineType)}</span>
+        <span class="badge badge-meal">${escHtml(r.mealCategory)}</span>
+        <span class="badge ${diffBadgeClass(r.difficulty)}">${escHtml(r.difficulty)}</span>
+      </div>
+      <div class="recipe-section">
+        <h2>Ingredients</h2>
+        <ul class="ingredients-list">${ingredients.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>
+      </div>
+      <div class="recipe-section">
+        <h2>Instructions</h2>
+        <p class="instructions-text">${escHtml(r.instructions)}</p>
+      </div>`;
+  }
+
+  window.deleteRecipe = async function(id) {
+    if (!confirm('Delete this recipe?')) return;
+    const token = localStorage.getItem('recipeOrganizerToken');
+    try {
+      const res = await fetch(`/api/recipes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) navigate('/dashboard');
+      else alert('Delete failed.');
+    } catch { alert('Delete failed.'); }
+  };
+
+  async function loadRecipe() {
+    if (!recipeId) { navigate('/dashboard'); return; }
+    const token = localStorage.getItem('recipeOrganizerToken');
+    try {
+      // Fetch all recipes then find by id (no single-recipe GET endpoint)
+      const res = await fetch('/api/recipes', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401) { window.logout(); return; }
+      const data = await res.json();
+      const recipe = (data.recipes || []).find(r => r._id === recipeId);
+      if (!recipe) {
+        container.innerHTML = '<p class="alert alert-error">Recipe not found.</p>';
+        return;
+      }
+      renderRecipe(recipe);
+    } catch (err) {
+      container.innerHTML = '<p class="alert alert-error">Failed to load recipe.</p>';
+    }
+  }
+
+  loadRecipe();
+})();
+</script>
+</body>
+</html>
