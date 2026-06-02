@@ -13,14 +13,14 @@
 
   <div id="login-alert" class="alert alert-error" style="display:none"></div>
 
-  <form id="login-form">
+  <form id="login-form" novalidate>
     <div class="form-group">
       <label for="email">Email</label>
-      <input type="email" id="email" name="email" placeholder="you@example.com" required />
+      <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required />
     </div>
     <div class="form-group">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" placeholder="••••••••" required />
+      <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required />
     </div>
     <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
   </form>
@@ -39,16 +39,35 @@
   function showError(msg) {
     alertEl.textContent = msg;
     alertEl.style.display = 'block';
+    alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function hideError() {
+    alertEl.style.display = 'none';
+  }
+
+  function validate(email, password) {
+    if (!email) return 'Email is required.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address.';
+    if (!password) return 'Password is required.';
+    return null;
   }
 
   form.addEventListener('submit', async function(e) {
     e.preventDefault();
-    alertEl.style.display = 'none';
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Signing in…';
+    hideError();
 
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+
+    const validationError = validate(email, password);
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Signing in…';
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -57,7 +76,7 @@
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      if (!res.ok) throw new Error(data.message || 'Login failed. Please check your credentials.');
 
       localStorage.setItem('recipeOrganizerToken', data.token);
       localStorage.setItem('recipeOrganizerUser', JSON.stringify(data.user));
