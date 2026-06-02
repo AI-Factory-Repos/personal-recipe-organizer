@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Recipes – Recipe Organizer</title>
+  <link rel="stylesheet" href="/frontend/css/main.css" />
+</head>
+<body>
+<div class="dashboard-header">
+  <h1>My Recipes</h1>
+  <a href="#/create-recipe" class="btn btn-primary">+ New Recipe</a>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="form-group">
+    <label for="filter-cuisine">Cuisine</label>
+    <select id="filter-cuisine">
+      <option value="">All Cuisines</option>
+      <option>Italian</option><option>Mexican</option><option>Chinese</option>
+      <option>Indian</option><option>American</option><option>French</option>
+      <option>Japanese</option><option>Mediterranean</option><option>Thai</option>
+      <option>Other</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="filter-meal">Meal Category</label>
+    <select id="filter-meal">
+      <option value="">All Categories</option>
+      <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
+      <option>Snack</option><option>Dessert</option><option>Appetizer</option>
+      <option>Beverage</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="filter-difficulty">Difficulty</label>
+    <select id="filter-difficulty">
+      <option value="">All Difficulties</option>
+      <option>Easy</option><option>Medium</option><option>Hard</option>
+    </select>
+  </div>
+  <button class="btn btn-secondary" id="filter-btn">Apply Filters</button>
+  <button class="btn btn-secondary" id="clear-btn">Clear</button>
+</div>
+
+<div id="recipes-container">
+  <div style="text-align:center;padding:3rem"><span class="spinner" style="border-color:var(--color-border);border-top-color:var(--color-primary);width:32px;height:32px"></span></div>
+</div>
+
+<script>
+(function() {
+  const container = document.getElementById('recipes-container');
+
+  function diffBadgeClass(diff) {
+    if (diff === 'Easy') return 'badge-easy';
+    if (diff === 'Hard') return 'badge-hard';
+    return 'badge-medium';
+  }
+
+  function renderRecipes(recipes) {
+    if (!recipes.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p>You haven't added any recipes yet.</p>
+          <a href="#/create-recipe" class="btn btn-primary">+ Add your first recipe</a>
+        </div>`;
+      return;
+    }
+    container.innerHTML = `<div class="recipe-grid">${recipes.map(r => `
+      <div class="recipe-card" onclick="navigate('/recipe/${r._id}')">
+        <h3>${escHtml(r.title)}</h3>
+        <div class="recipe-meta">
+          <span class="badge badge-cuisine">${escHtml(r.cuisineType)}</span>
+          <span class="badge badge-meal">${escHtml(r.mealCategory)}</span>
+          <span class="badge ${diffBadgeClass(r.difficulty)}">${escHtml(r.difficulty)}</span>
+        </div>
+        <div class="recipe-card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary" onclick="navigate('/edit-recipe/${r._id}')">Edit</button>
+          <button class="btn btn-danger" onclick="deleteRecipe('${r._id}')">Delete</button>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function loadRecipes(params = {}) {
+    const token = localStorage.getItem('recipeOrganizerToken');
+    const qs = new URLSearchParams();
+    if (params.cuisine) qs.set('cuisine', params.cuisine);
+    if (params.mealCategory) qs.set('mealCategory', params.mealCategory);
+    if (params.difficulty) qs.set('difficulty', params.difficulty);
+    const url = '/api/recipes' + (qs.toString() ? '?' + qs.toString() : '');
+    try {
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.status === 401) { window.logout(); return; }
+      const data = await res.json();
+      renderRecipes(data.recipes || []);
+    } catch (err) {
+      container.innerHTML = '<p class="alert alert-error">Failed to load recipes.</p>';
+    }
+  }
+
+  window.deleteRecipe = async function(id) {
+    if (!confirm('Delete this recipe?')) return;
+    const token = localStorage.getItem('recipeOrganizerToken');
+    try {
+      const res = await fetch(`/api/recipes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) loadRecipes();
+      else alert('Delete failed.');
+    } catch { alert('Delete failed.'); }
+  };
+
+  document.getElementById('filter-btn').addEventListener('click', function() {
+    loadRecipes({
+      cuisine: document.getElementById('filter-cuisine').value,
+      mealCategory: document.getElementById('filter-meal').value,
+      difficulty: document.getElementById('filter-difficulty').value
+    });
+  });
+
+  document.getElementById('clear-btn').addEventListener('click', function() {
+    document.getElementById('filter-cuisine').value = '';
+    document.getElementById('filter-meal').value = '';
+    document.getElementById('filter-difficulty').value = '';
+    loadRecipes();
+  });
+
+  loadRecipes();
+})();
+</script>
+</body>
+</html>
